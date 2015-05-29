@@ -12,7 +12,8 @@ end
 
 if options[:server_only]
   begin
-    rs.start_server
+    options[:verbose] = true
+    rs.start_server_only $stdout
   rescue Exception
     raise if options[:verbose]
   end

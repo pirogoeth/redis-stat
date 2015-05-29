@@ -164,6 +164,93 @@ class RedisStat
     @os.puts! "Elapsed: #{"%.2f" % (Time.now - @started_at)} sec.".blue.bold
   end
 
+  def start_server_only stream
+    @started_at = Time.now
+    @os = output_stream!(stream)
+    trap('INT') { Thread.main.raise Interrupt }
+
+    begin
+      csv = if @csv_file
+              File.open(File.expand_path(@csv_file), 'w')
+            elsif @csv_output
+              $stdout
+            end
+      authenticate!
+
+      # Initial info collection
+      info, x = collect
+      unless x.empty?
+        output_term_errors! format_exceptions(x)
+        exit 1
+      end
+
+      # Check elasticsearch status
+      if @elasticsearch
+        begin
+          output_es Hash[process(info, nil)]
+        rescue Exception => e
+          output_term_errors! format_exceptions({ :elasticsearch => e })
+          exit 1
+        end
+      end
+
+      # Start web servers
+      server = start_server(info) if @server_port
+
+      # Main loop
+      prev_info = nil
+      LPS.interval(@interval).loop do
+        info, exceptions =
+          begin
+            collect
+          rescue Interrupt
+            raise
+          end
+
+        if exceptions.any? { |k, v| need_auth? v }
+          authenticate!
+          next
+        end
+
+        info_output_all = process info, prev_info
+        begin
+          output_es Hash[info_output_all] if @elasticsearch && @count > 0
+        rescue Interrupt
+          raise
+        rescue Exception => e
+          exceptions[:elasticsearch] = e.to_s
+        end
+        error_messages = format_exceptions(exceptions)
+        server.push @hosts, info, info_output_all, error_messages if server
+        output_file info_output, csv if csv
+
+        prev_info = info
+
+        @count += 1
+        break if @max_count && @count >= @max_count
+      end
+      @os.puts
+    rescue Interrupt
+      @os.puts
+      @os.puts! "Interrupted.".yellow.bold
+      if @server_thr
+        @server_thr.raise Interrupt
+        begin
+          @server_thr.join
+        rescue Interrupt
+        end
+      end
+    rescue SystemExit
+      raise
+    rescue Exception => e
+      @os.puts! e.to_s.red.bold
+      raise
+    ensure
+      csv.close if csv
+    end
+    @os.puts! "Elapsed: #{"%.2f" % (Time.now - @started_at)} sec.".blue.bold
+  end
+
 private
   def start_server info
     RedisStat::Server.set :port, @server_port
