@@ -50,6 +50,7 @@ class RedisStat
     @first_batch   = true
     @server_port   = options[:server_port]
     @server_thr    = nil
+    @server_only   = options[:server_only]
     @daemonized    = options[:daemon]
     @elasticsearch = options[:es] && ElasticsearchSink.new(@hosts, options[:es])
   end

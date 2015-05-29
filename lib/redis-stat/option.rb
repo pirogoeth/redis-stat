@@ -53,6 +53,10 @@ module Option
         options[:server_port] = v || RedisStat::DEFAULT_SERVER_PORT
       end
 
+      opts.on('--server-only', "Disable the iotop like interface and only start the web interface.") do |v|
+        options[:server_only] = true
+      end
+
       opts.on('--daemon', "Daemonize redis-stat. Must be used with --server option.") do |v|
         options[:daemon] = true
         if RUBY_PLATFORM == 'java'

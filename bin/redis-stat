@@ -9,8 +9,17 @@ if options[:daemon]
   require 'daemons'
   Daemons.daemonize(:app_name => 'redis-stat-daemon')
 end
-begin
-  rs.start $stdout
-rescue Exception
-  raise if options[:verbose]
+
+if options[:server_only]
+  begin
+    rs.start_server
+  rescue Exception
+    raise if options[:verbose]
+  end
+else
+  begin
+    rs.start $stdout
+  rescue Exception
+    raise if options[:verbose]
+  end
 end
